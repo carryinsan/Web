@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#09090b">
+    <meta name="description" content="HyperNexus: Secure Vault & Network Utility">
+    <link rel="manifest" href="manifest.json">
+    <title>HyperNexus | Pro</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        bg: '#09090b',
+                        surface: '#18181b',
+                        surface2: '#27272a',
+                        primary: '#3b82f6', 
+                        accent: '#8b5cf6',
+                        success: '#10b981',
+                        danger: '#ef4444'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'Menlo', 'monospace'],
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #09090b; color: #e4e4e7; -webkit-tap-highlight-color: transparent; }
+        .glass-panel { background: rgba(39, 39, 42, 0.4); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
+        .active-nav { color: #3b82f6; }
+        .active-nav i { filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.5)); }
+        
+        /* Speed Gauge */
+        .gauge-circle { transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset 0.5s ease-out; }
+        
+        /* Scrollbar */
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 2px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden select-none font-sans">
+
+    <!-- HEADER -->
+    <header class="h-14 px-5 flex items-center justify-between border-b border-white/5 bg-surface/80 backdrop-blur-md z-50">
+        <div class="flex items-center gap-3">
+            <div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+            <span class="font-bold tracking-wider text-sm text-gray-200">HYPER<span class="text-primary">NEXUS</span></span>
+        </div>
+        <div class="flex gap-4 text-[10px] font-mono text-gray-500">
+            <div id="status-storage" class="flex items-center gap-1"><i class="fa-solid fa-database"></i> <span>--</span></div>
+            <div id="status-net" class="flex items-center gap-1"><i class="fa-solid fa-wifi"></i> <span>READY</span></div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 relative overflow-hidden bg-bg">
+        
+        <!-- VIEW 1: VAULT (Storage & Share Sink) -->
+        <div id="view-vault" class="view-section absolute inset-0 overflow-hidden flex flex-col">
+            <!-- Share Inbox / Drop Zone -->
+            <div class="p-4 bg-surface2/30 border-b border-white/5 shrink-0">
+                <div class="glass-panel rounded-xl p-4 border-dashed border-2 border-white/10 relative transition-all" id="drop-zone">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase mb-2 flex justify-between">
+                        <span>Inbox / Share Target</span>
+                        <span id="save-status" class="text-primary hidden">SAVING...</span>
+                    </h3>
+                    <input type="text" id="share-sink" class="w-full bg-black/30 rounded p-3 text-xs font-mono text-gray-300 mb-2 outline-none border border-white/5 focus:border-primary/50 transition" placeholder="Paste link or text...">
+                    
+                    <div class="flex gap-2 mt-2">
+                        <button onclick="vault.addText()" class="flex-1 bg-surface py-2 rounded text-[10px] font-bold text-gray-400 hover:text-white border border-white/5">
+                            <i class="fa-solid fa-plus mr-1"></i> SAVE TEXT
+                        </button>
+                        <label class="flex-1 bg-surface py-2 rounded text-[10px] font-bold text-gray-400 hover:text-white border border-white/5 flex items-center justify-center cursor-pointer">
+                            <i class="fa-solid fa-file-arrow-up mr-1"></i> UPLOAD FILE
+                            <input type="file" id="file-upload" class="hidden" onchange="vault.addFile(this)">
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File List -->
+            <div class="flex-1 overflow-y-auto custom-scroll p-4 space-y-3" id="file-list">
+                <!-- Dynamic Content -->
+                <div class="text-center mt-10 opacity-30">
+                    <i class="fa-solid fa-box-open text-4xl mb-2"></i>
+                    <p class="text-xs">Vault Empty</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 2: UTILITY (Tools) -->
+        <div id="view-utility" class="view-section hidden absolute inset-0 overflow-y-auto custom-scroll p-5 space-y-5">
+            
+            <!-- Hardware Tools -->
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="hw.toggleTorch()" id="btn-torch" class="glass-panel p-4 rounded-xl flex flex-col items-center justify-center gap-2 active:bg-white/5 transition">
+                    <i class="fa-solid fa-lightbulb text-xl text-gray-400"></i>
+                    <span class="text-xs font-medium text-gray-300">Torch</span>
+                </button>
+                <button onclick="hw.cleanClipboard()" class="glass-panel p-4 rounded-xl flex flex-col items-center justify-center gap-2 active:bg-white/5 transition">
+                    <i class="fa-solid fa-shield-halved text-xl text-success"></i>
+                    <span class="text-xs font-medium text-gray-300">Clean Link</span>
+                </button>
+            </div>
+
+            <!-- Sensor Data -->
+            <div class="glass-panel rounded-xl p-4">
+                <h3 class="text-xs font-bold text-gray-500 uppercase mb-3 flex justify-between items-center">
+                    <span>Sensor Telemetry</span>
+                    <button onclick="hw.reqSensors()" class="text-[9px] bg-primary/20 text-primary px-2 py-1 rounded">ENABLE</button>
+                </h3>
+                <div class="grid grid-cols-2 gap-2 text-[10px] font-mono">
+                    <div class="bg-black/30 p-2 rounded border border-white/5">
+                        <span class="text-gray-600 block mb-1">ACCELEROMETER</span>
+                        <div id="val-accel" class="text-primary truncate">--</div>
+                    </div>
+                    <div class="bg-black/30 p-2 rounded border border-white/5">
+                        <span class="text-gray-600 block mb-1">GYROSCOPE</span>
+                        <div id="val-gyro" class="text-accent truncate">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Screen Info -->
+            <div class="glass-panel rounded-xl p-4 flex justify-between items-center">
+                <div>
+                    <h3 class="text-xs font-bold text-gray-500 uppercase">Display</h3>
+                    <p id="screen-info" class="text-xs font-mono text-gray-300 mt-1">--</p>
+                </div>
+                <button onclick="hw.fixPixels()" class="text-xs text-danger border border-danger/30 px-3 py-1 rounded hover:bg-danger/10">Strobe</button>
+            </div>
+        </div>
+
+        <!-- VIEW 3: NETWORK (Speed) -->
+        <div id="view-net" class="view-section hidden absolute inset-0 flex flex-col items-center justify-center p-6 space-y-8 bg-black">
+            <div class="relative w-64 h-64">
+                <svg class="w-full h-full" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="#27272a" stroke-width="4" />
+                    <circle id="speed-gauge" class="gauge-circle" cx="50" cy="50" r="45" fill="none" stroke="#3b82f6" stroke-width="4" stroke-dasharray="283" stroke-dashoffset="283" stroke-linecap="round" />
+                </svg>
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                    <span id="speed-val" class="text-5xl font-black text-white tracking-tighter">0.0</span>
+                    <span class="text-xs font-bold text-gray-500 mt-1">MBPS</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-8 w-full max-w-xs">
+                <div class="text-center">
+                    <div class="text-[10px] text-gray-500 uppercase tracking-widest">Latency</div>
+                    <div id="ping-val" class="text-xl font-mono text-accent">-- ms</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-[10px] text-gray-500 uppercase tracking-widest">Status</div>
+                    <div id="net-grade" class="text-xl font-mono text-gray-500">IDLE</div>
+                </div>
+            </div>
+
+            <button onclick="net.run()" id="btn-test" class="w-full max-w-xs bg-primary hover:bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-900/20 active:scale-95 transition">
+                START TEST
+            </button>
+            <p class="text-[10px] text-gray-600">Downloads 500KB payload. Real throughput.</p>
+        </div>
+        
+    </main>
+
+    <!-- PREVIEW MODAL -->
+    <div id="preview-modal" class="fixed inset-0 z-[60] bg-black/90 hidden flex flex-col">
+        <div class="h-12 border-b border-white/10 flex items-center justify-between px-4 bg-surface">
+            <h3 id="preview-title" class="text-sm font-bold truncate max-w-[200px]">Preview</h3>
+            <button onclick="document.getElementById('preview-modal').classList.add('hidden')" class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div id="preview-content" class="flex-1 overflow-auto p-4 flex items-center justify-center">
+            <!-- Content injected here -->
+        </div>
+    </div>
+
+    <!-- NAVIGATION -->
+    <nav class="h-16 bg-surface/90 backdrop-blur-xl border-t border-white/5 grid grid-cols-3 pb-safe shrink-0 z-50">
+        <button onclick="app.route('vault')" class="nav-btn active-nav flex flex-col items-center justify-center gap-1" data-target="vault">
+            <i class="fa-solid fa-vault text-lg"></i>
+            <span class="text-[9px] font-bold tracking-wider">VAULT</span>
+        </button>
+        <button onclick="app.route('utility')" class="nav-btn text-gray-600 flex flex-col items-center justify-center gap-1" data-target="utility">
+            <i class="fa-solid fa-microchip text-lg"></i>
+            <span class="text-[9px] font-bold tracking-wider">TOOLS</span>
+        </button>
+        <button onclick="app.route('net')" class="nav-btn text-gray-600 flex flex-col items-center justify-center gap-1" data-target="net">
+            <i class="fa-solid fa-gauge-high text-lg"></i>
+            <span class="text-[9px] font-bold tracking-wider">SPEED</span>
+        </button>
+    </nav>
+
+    <script>
+        // --- INDEXEDDB (REAL STORAGE) ---
+        const db = {
+            conn: null,
+            init: function() {
+                return new Promise((resolve, reject) => {
+                    const req = indexedDB.open('HyperNexusDB', 1);
+                    req.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains('files')) {
+                            db.createObjectStore('files', { keyPath: 'id', autoIncrement: true });
+                        }
+                    };
+                    req.onsuccess = (e) => {
+                        this.conn = e.target.result;
+                        this.updateUsage();
+                        resolve(this.conn);
+                    };
+                    req.onerror = (e) => reject(e);
+                });
+            },
+            add: function(fileObj) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.conn.transaction(['files'], 'readwrite');
+                    const store = tx.objectStore('files');
+                    // Ensure we are storing a blob or text
+                    const req = store.add(fileObj);
+                    req.onsuccess = () => { this.updateUsage(); resolve(); };
+                    req.onerror = (e) => reject(e);
+                });
+            },
+            getAll: function() {
+                return new Promise((resolve, reject) => {
+                    if(!this.conn) return resolve([]);
+                    const tx = this.conn.transaction(['files'], 'readonly');
+                    const req = tx.objectStore('files').getAll();
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = (e) => reject(e);
+                });
+            },
+            delete: function(id) {
+                return new Promise((resolve) => {
+                    const tx = this.conn.transaction(['files'], 'readwrite');
+                    tx.objectStore('files').delete(id);
+                    tx.oncomplete = () => { this.updateUsage(); resolve(); };
+                });
+            },
+            updateUsage: function() {
+                // Rough estimate
+                if (navigator.storage && navigator.storage.estimate) {
+                    navigator.storage.estimate().then(est => {
+                        const mb = (est.usage / 1024 / 1024).toFixed(1);
+                        document.getElementById('status-storage').innerHTML = `<i class="fa-solid fa-database"></i> <span>${mb} MB</span>`;
+                    });
+                }
+            }
+        };
+
+        // --- APP LOGIC ---
+        const app = {
+            init: async function() {
+                await db.init();
+                this.checkShareTarget();
+                vault.render();
+                
+                // Screen Info
+                document.getElementById('screen-info').innerText = `${window.screen.width}x${window.screen.height} (${window.devicePixelRatio}x) | ${navigator.platform}`;
+                
+                // Service Worker Registration for PWA support
+                if ('serviceWorker' in navigator) {
+                    // We create a simple dummy SW to allow installation
+                    const swCode = `self.addEventListener('fetch', e => {});`;
+                    const blob = new Blob([swCode], {type: 'text/javascript'});
+                    navigator.serviceWorker.register(URL.createObjectURL(blob))
+                        .then(() => console.log('SW Registered'))
+                        .catch(err => console.log('SW Fail', err));
+                }
+            },
+            
+            route: function(view) {
+                document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+                document.getElementById(`view-${view}`).classList.remove('hidden');
+                
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    btn.classList.remove('active-nav', 'text-gray-600');
+                    if(btn.dataset.target === view) btn.classList.add('active-nav');
+                    else btn.classList.add('text-gray-600');
+                });
+            },
+
+            checkShareTarget: function() {
+                const params = new URLSearchParams(window.location.search);
+                const title = params.get('title');
+                const text = params.get('text');
+                const url = params.get('url');
+                
+                if (title || text || url) {
+                    // Combine into single string
+                    const content = [title, text, url].filter(Boolean).join('\n');
+                    document.getElementById('share-sink').value = content;
+                    
+                    // Auto-add to DB if simple text
+                    db.add({
+                        type: 'text',
+                        name: title || 'Shared Content',
+                        content: content,
+                        date: new Date().toLocaleString()
+                    }).then(() => {
+                        vault.render();
+                        // Clean URL
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    });
+                }
+            }
+        };
+
+        // --- VAULT LOGIC ---
+        const vault = {
+            render: async function() {
+                const list = document.getElementById('file-list');
+                const files = await db.getAll();
+                
+                if(files.length === 0) {
+                    list.innerHTML = `<div class="text-center mt-10 opacity-30"><i class="fa-solid fa-box-open text-4xl mb-2"></i><p class="text-xs">Vault Empty</p></div>`;
+                    return;
+                }
+                
+                list.innerHTML = files.slice().reverse().map(f => {
+                    const icon = f.type === 'image' ? 'fa-image' : (f.type === 'pdf' ? 'fa-file-pdf' : 'fa-file-lines');
+                    const color = f.type === 'image' ? 'text-accent' : (f.type === 'pdf' ? 'text-red-400' : 'text-primary');
+                    
+                    return `
+                    <div class="glass-panel p-3 rounded-lg flex items-center justify-between group">
+                        <div class="flex items-center gap-3 overflow-hidden" onclick="vault.preview(${f.id})">
+                            <div class="w-8 h-8 rounded bg-white/5 flex items-center justify-center ${color}">
+                                <i class="fa-solid ${icon}"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h4 class="text-xs font-bold truncate text-gray-200">${f.name}</h4>
+                                <p class="text-[10px] text-gray-500 truncate">${f.date}</p>
+                            </div>
+                        </div>
+                        <button onclick="vault.remove(${f.id})" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-danger">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>`;
+                }).join('');
+            },
+
+            addText: async function() {
+                const input = document.getElementById('share-sink');
+                if(!input.value.trim()) return;
+                
+                await db.add({
+                    type: 'text',
+                    name: `Note ${new Date().toLocaleTimeString()}`,
+                    content: input.value,
+                    date: new Date().toLocaleString()
+                });
+                input.value = '';
+                this.render();
+            },
+
+            addFile: async function(input) {
+                if (input.files && input.files[0]) {
+                    const file = input.files[0];
+                    const isImg = file.type.startsWith('image/');
+                    const isPdf = file.type === 'application/pdf';
+                    
+                    await db.add({
+                        type: isImg ? 'image' : (isPdf ? 'pdf' : 'file'),
+                        name: file.name,
+                        content: file, // Store blob directly
+                        date: new Date().toLocaleString()
+                    });
+                    this.render();
+                }
+            },
+
+            remove: async function(id) {
+                if(confirm('Delete permanently from storage?')) {
+                    await db.delete(id);
+                    this.render();
+                }
+            },
+
+            preview: async function(id) {
+                const files = await db.getAll();
+                const f = files.find(x => x.id === id);
+                if(!f) return;
+                
+                const modal = document.getElementById('preview-modal');
+                const contentDiv = document.getElementById('preview-content');
+                const title = document.getElementById('preview-title');
+                
+                title.innerText = f.name;
+                contentDiv.innerHTML = '';
+                
+                if (f.type === 'text') {
+                    contentDiv.innerHTML = `<pre class="text-xs font-mono text-gray-300 whitespace-pre-wrap p-4 bg-white/5 rounded w-full overflow-auto">${f.content}</pre>`;
+                } else if (f.type === 'image') {
+                    const url = URL.createObjectURL(f.content);
+                    contentDiv.innerHTML = `<img src="${url}" class="max-w-full max-h-full rounded shadow-lg">`;
+                } else if (f.type === 'pdf') {
+                    const url = URL.createObjectURL(f.content);
+                    contentDiv.innerHTML = `<iframe src="${url}" class="w-full h-full bg-white rounded"></iframe>`;
+                } else {
+                    contentDiv.innerHTML = `<div class="text-center">Cannot preview this file type.</div>`;
+                }
+                
+                modal.classList.remove('hidden');
+            }
+        };
+
+        // --- HARDWARE UTILS ---
+        const hw = {
+            stream: null,
+            toggleTorch: async function() {
+                const btn = document.getElementById('btn-torch');
+                const icon = btn.querySelector('i');
+                
+                if (this.stream) {
+                    this.stream.getTracks().forEach(t => t.stop());
+                    this.stream = null;
+                    icon.classList.replace('text-yellow-400', 'text-gray-400');
+                    return;
+                }
+                
+                try {
+                    this.stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: "environment" }
+                    });
+                    const track = this.stream.getVideoTracks()[0];
+                    const caps = track.getCapabilities();
+                    if (!caps.torch) throw new Error("No Torch");
+                    
+                    await track.applyConstraints({ advanced: [{ torch: true }] });
+                    icon.classList.replace('text-gray-400', 'text-yellow-400');
+                } catch(e) {
+                    alert("Torch access denied or unavailable.\nEnsure you are on HTTPS.");
+                }
+            },
+            
+            cleanClipboard: async function() {
+                try {
+                    const text = await navigator.clipboard.readText();
+                    const clean = text.replace(/(\?|&)(utm_|fbclid|gclid|gclsrc|ref|ref_src)[^&]*/g, '');
+                    document.getElementById('share-sink').value = clean;
+                    app.route('vault');
+                } catch(e) {
+                    alert("Clipboard permission required.");
+                }
+            },
+
+            reqSensors: function() {
+                if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                    DeviceMotionEvent.requestPermission()
+                        .then(res => {
+                            if (res === 'granted') this.startSensors();
+                        })
+                        .catch(console.error);
+                } else {
+                    this.startSensors();
+                }
+            },
+
+            startSensors: function() {
+                window.addEventListener('devicemotion', e => {
+                    const a = e.accelerationIncludingGravity;
+                    if(a) document.getElementById('val-accel').innerText = `X:${a.x?.toFixed(1)} Y:${a.y?.toFixed(1)}`;
+                });
+                window.addEventListener('deviceorientation', e => {
+                    if(e.alpha) document.getElementById('val-gyro').innerText = `α:${e.alpha?.toFixed(0)} β:${e.beta?.toFixed(0)}`;
+                });
+            },
+
+            fixPixels: function() {
+                if(!confirm("Warning: Flashing Screen.")) return;
+                const d = document.createElement('div');
+                d.style = "position:fixed;inset:0;z-index:9999;background:red;animation:flash 0.1s infinite;";
+                const s = document.createElement('style');
+                s.innerHTML = "@keyframes flash { 0%{background:red} 33%{background:lime} 66%{background:blue} }";
+                d.appendChild(s);
+                d.onclick = () => d.remove();
+                document.body.appendChild(d);
+                setTimeout(()=>d.remove(), 4000);
+            }
+        };
+
+        // --- NETWORK TOOL ---
+        const net = {
+            run: async function() {
+                const btn = document.getElementById('btn-test');
+                const gauge = document.getElementById('speed-gauge');
+                const val = document.getElementById('speed-val');
+                
+                btn.disabled = true;
+                btn.innerText = "TESTING...";
+                
+                // 1. Latency
+                const s = performance.now();
+                try { await fetch('https://www.google.com/generate_204', {mode:'no-cors', cache:'no-store'}); } catch(e){}
+                document.getElementById('ping-val').innerText = Math.round(performance.now() - s) + " ms";
+
+                // 2. Throughput
+                const start = performance.now();
+                // 500KB reliable CDN file
+                const url = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"; 
+                
+                try {
+                    const res = await fetch(url + "?t=" + Math.random());
+                    const blob = await res.blob();
+                    const mbps = ((blob.size * 8) / ((performance.now() - start) / 1000) / 1024 / 1024).toFixed(1);
+                    
+                    val.innerText = mbps;
+                    const offset = 283 - (Math.min(mbps, 50)/50 * 283); // 50mbps scale
+                    gauge.style.strokeDashoffset = offset;
+                    
+                    const grade = mbps > 20 ? "EXCELLENT" : (mbps > 5 ? "GOOD" : "POOR");
+                    document.getElementById('net-grade').innerText = grade;
+                    document.getElementById('net-grade').className = `text-xl font-mono ${mbps > 5 ? 'text-success' : 'text-danger'}`;
+                    
+                } catch(e) {
+                    val.innerText = "ERR";
+                }
+                
+                btn.disabled = false;
+                btn.innerText = "TEST AGAIN";
+            }
+        };
+
+        window.onload = app.init();
+    </script>
+</body>
+</html>
+
